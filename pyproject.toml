@@ -1,0 +1,61 @@
+[tool.poetry]
+name = "orion-nais"
+version = "0.1.0"
+description = "A client for the NAIS API from FThe Norwegian Coastal Administration"
+authors = ["Lasse Lambrechts <lasse.lambrechts@bt.no>"]
+readme = "README.md"
+packages = [{include = "orion_nais"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+geopandas = "^0.12.2"
+pandas = "^1.5.2"
+python-dotenv = "^0.21.0"
+requests = "^2.28.0"
+shapely = "^2.0.0"
+pytz = "^2022.7.1"
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.12.0"
+isort = "^5.11.4"
+flake8 = "^6.0.0"
+mypy = "^0.991"
+types-requests = "^2.28.11.7"
+bump2version = "^1.0.1"
+pytest = "^7.2.1"
+pytest-cov = "^4.0.0"
+pyogrio = "^0.5.1"
+deepdiff = "^6.2.3"
+types-pytz = "^2022.7.1.0"
+
+[tool.isort]
+profile = "black"
+
+[tool.mypy]
+# 3rd party import
+ignore_missing_imports = true
+# dynamic typing
+disallow_any_unimported = true
+disallow_any_expr = false
+disallow_any_decorated = false
+disallow_any_explicit = true
+disallow_any_generics = false
+disallow_subclassing_any = true
+# platform
+python_version = "3.10"
+# untyped
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_decorators = true
+# None and Optional
+no_implicit_optional = true
+# Warnings
+warn_return_any = false
+warn_unreachable = true
+# Misc
+pretty = true
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
