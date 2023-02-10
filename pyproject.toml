@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A client for the NAIS API from FThe Norwegian Coastal Administration"
 authors = ["Lasse Lambrechts <lasse.lambrechts@bt.no>"]
 readme = "README.md"
-packages = [{include = "orion_nais"}]
+packages = [{include = "orion"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
