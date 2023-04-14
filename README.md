@@ -8,18 +8,20 @@
     <li>
       <a href="#about-the-project">About The Project</a>
       <ul>
-        <li><a href="#requirements">Requirements</a></li>
-        <li><a href="#structure">Structure</a></li>
+        <li><a href="#requirements">Why the nanme Orion?</a></li>
       </ul>
     </li>
     <li>
-      <a href="#getting-started">Getting Started</a>
-      <ul>
-        <li><a href="#prerequisites">Prerequisites</a></li>
-        <li><a href="#installation">Installation</a></li>
-      </ul>
+      <a href="#installation">Installation</a>
     </li>
     <li><a href="#usage">Usage</a></li>
+    <li><a href="#local-development">Local development</a>
+      <ul>
+        <li><a href="#requirements">Requirements</a></li>
+        <li><a href="#makefile-commands">Makefile commands</a></li>
+        <li><a href="#structure">Structure</a></li>
+      </ul>
+    </li>
     <li><a href="#contributing">Contributing</a></li>
     <li><a href="#contact">Contact</a></li>
   </ol>
