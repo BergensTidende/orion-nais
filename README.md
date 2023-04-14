@@ -89,6 +89,9 @@ You can either install poetry with homebrew or the way described in the [documen
   - lint the code in the src folder with black, isort and flake8. Mypy will check for correct typing.
 - `make format`
   - format the code in the src folder with black and isort.
+- `make test`
+  - run the tests in the tests folder.
+
 
 ### Structure
 

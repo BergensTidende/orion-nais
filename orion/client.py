@@ -13,6 +13,7 @@ import json
 import logging
 import math
 import os
+import urllib.parse
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 
@@ -68,13 +69,20 @@ class Orion(MmsiMixin, VesselCodeMixin):
             self.client_id = client_id or CLIENT_ID
             self.client_secret = client_secret or CLIENT_SECRET
 
-            if (not CLIENT_ID) | (not CLIENT_SECRET):  # pragma: no cover
+            if (not self.client_id) | (
+                not self.client_secret
+            ):  # pragma: no cover # noqa
                 raise ValueError(
                     """
-                    Please set CLIENT_ID and CLIENT_SECRET in .env file
+                    Please either set CLIENT_ID and CLIENT_SECRET in .env file
                     or provide them when creating an instance of the class
                     """
                 )
+
+            if type(self.client_id) == str:  # pragma: no cover
+                self.client_id = urllib.parse.quote_plus(self.client_id)
+            if type(self.client_secret) == str:  # pragma: no cover
+                self.client_secret = urllib.parse.quote_plus(self.client_secret)
 
             self.authenticate_session = requests.Session()  # Session for tokens
             self.authenticate()
@@ -382,7 +390,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
 
     def explore(  # type: ignore[no-any-unimported]
         self, _gdf: geopandas.GeoDataFrame
-    ) -> str: # pragma: no cover
+    ) -> str:  # pragma: no cover
         """helper function to geopandas explore
 
         Args:

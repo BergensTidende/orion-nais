@@ -35,6 +35,8 @@ src.zip
 
 */__pycache__
 */__pycache__/*
+orion/types/__pycache__/
+orion/utils/__pycache__/
 
 .mypy_cache
 .mypy_cache/*
