@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "orion-nais"
-version = "0.1.0"
+version = "0.1.1"
 description = "A client for the NAIS API from FThe Norwegian Coastal Administration"
 authors = ["Lasse Lambrechts <lasse.lambrechts@bt.no>"]
 readme = "README.md"

@@ -91,6 +91,14 @@ You can either install poetry with homebrew or the way described in the [documen
   - format the code in the src folder with black and isort.
 - `make test`
   - run the tests in the tests folder.
+- `make bump-patch`
+  - bump the patch version of the package. Example: 0.1.0 -> 0.1.1
+- `make bump-minor`
+  - bump the minor version of the package. Example: 0.1.0 -> 0.2.0
+- `make bump-major`
+  - bump the major version of the package. Example: 0.1.0 -> 1.0.0 
+- `make release`
+  - publish the package to pypi. You need to have an account and be logged in to pypi.
 
 
 ### Structure
