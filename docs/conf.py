@@ -3,16 +3,16 @@ import os
 import sys
 
 sys.path.insert(0, os.path.abspath(".."))
-import airflow_dbt_python
+import orion
 
 # -- Project information -----------------------------------------------------
 
-project = airflow_dbt_python.__title__
-copyright = airflow_dbt_python.__copyright__
-author = airflow_dbt_python.__author__
+project = "orion-nais"
+copyright = "MIT"
+author = "Lasse Lambrechts"
 
 # The full version, including alpha/beta/rc tags
-release = version = airflow_dbt_python.__version__
+release = version = "0.1.1"
 
 # -- General configuration ---------------------------------------------------
 
@@ -22,10 +22,12 @@ release = version = airflow_dbt_python.__version__
 extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
+    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
     "sphinx.ext.githubpages",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
+    "m2r"
 ]
 
 

@@ -97,8 +97,6 @@ line = orion.ais_to_line(ais)
 ## Local development
 
 ### Requirements
----
-
 - pyenv - manage python versions
 - poetry - manage python dependencies
 
