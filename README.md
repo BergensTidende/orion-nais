@@ -63,7 +63,34 @@ poetry add orion-nais
 
 ## Usage
 
-There are a heap of functions for you to use. Enjoy.
+To install the package in your project run
+
+```bash
+
+poetry add orion-nais
+```
+
+then add an .env file to your project with the following variables:
+
+```bash
+CLIENT_ID=
+CLIENT_SECRET=
+```
+
+If you don't have a client id and secret you can get one from your [BarentsWatch account](https://www.barentswatch.no/minside/).
+
+Then you can use the client like this:
+
+```python
+from orion import Orion
+
+orion = Orion()
+# Get the last 24 hours of AIS data for a ship with MMSI XXXXXXXXXX
+ais = orion.get_ais_last_24H(SHIP_MMSI)
+# Convert the AIS data to a line
+line = orion.ais_to_line(ais)
+
+```
 
 ## Local development
 
@@ -165,15 +192,6 @@ You can either install poetry with homebrew or the way described in the [documen
     - A dataclass for looking up vessel codes.
 - `tests`
   - Tests for the package.
-
-## Usage
-
-To install the package in your project run
-
-```bash
-
-poetry add orion-nais
-```
 
 ## Contributing
 
