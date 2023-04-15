@@ -208,7 +208,7 @@ If not do the following:
 - Add the original repository as a remote called `upstream`.
 - If you created your fork a while ago be sure to pull upstream changes into your local repository.
 
-This will clone the repo into `pakkenellik`. 
+This will clone the repo into `orion-nais`. 
 
 Create a branch for your changes
 
@@ -224,8 +224,7 @@ If your're working a fork:
 
 - Squash your commits into a single commit with git's [interactive rebase](https://help.github.com/articles/interactive-rebase). Create a new branch if necessary.
 - Push your branch to your fork on Github, the remote `origin`.
-- From your fork open a pull request in the correct branch. Target the project's `develop` branch if there is one, else go for `master`!
-- …
+- From your fork open a pull request in the correct branch. Target the project's `develop` branch if there is one, else go for `master`.
 - If the maintainer requests further changes just push them to your branch. The PR will be updated automatically.
 - Once the pull request is approved and merged you can pull the changes from `upstream` to your local repo and delete
   your extra branch(es).

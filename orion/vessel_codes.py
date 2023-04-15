@@ -580,6 +580,12 @@ def make_vessel_codes() -> List["AisVesselCode"]:
 
 @dataclass
 class AisVesselCode:
+    """
+    Represents a vessel type code. A vessel code is a number that
+    represents a type of vessel. Either as a single number or a range of numbers.
+    Example: Vesel code 51 is a Search and Rescue vessel
+    """
+
     name: str
     fromCode: int
     toCode: int
@@ -588,6 +594,10 @@ class AisVesselCode:
 
 @dataclass
 class AisVesselCodes:
+    """
+    Class to look up vessel codes and different utility functions for vessel codes.
+    """
+
     codes: List[AisVesselCode] = field(default_factory=make_vessel_codes)
 
     def get_vessel_type(self, code: int) -> Optional[AisVesselCode]:

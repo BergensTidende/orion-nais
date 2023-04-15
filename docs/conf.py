@@ -22,9 +22,9 @@ release = version = "0.1.1"
 extensions = [
     "sphinx_rtd_theme",
     "sphinx.ext.autodoc",
-    "sphinx.ext.autosummary",
     "sphinx.ext.napoleon",
-    "sphinx.ext.githubpages",
+    "sphinx.ext.coverage",
+    "sphinx_autodoc_typehints",
     "sphinx.ext.viewcode",
     "sphinx_copybutton",
     "m2r"
@@ -33,7 +33,6 @@ extensions = [
 
 templates_path = ['_templates']
 exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
-
 
 
 # -- Options for HTML output -------------------------------------------------

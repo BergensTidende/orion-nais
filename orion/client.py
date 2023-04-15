@@ -50,7 +50,14 @@ class Orion(MmsiMixin, VesselCodeMixin):
     `CLIENT_ID` and `CLIENT_SECRET` or passed as parameters
     when creating an instance of the class.
 
-    >>>  orion = Orion(client_id="myclientid", client_secret="myclientsecret")
+    orion = Orion(client_id="myclientid", client_secret="myclientsecret")
+
+    Args:
+            client_id (Optional[str]): id for your user at Barentswatch.
+                Use if not set in .env file.
+            client_secret (Optional[str]): secret for your user at Barentswatch.
+                Use if not set in .env file.
+            skip_auth (Optional[bool]): skip authentication. Useful for testing.
     """
 
     def __init__(
@@ -59,38 +66,32 @@ class Orion(MmsiMixin, VesselCodeMixin):
         client_secret: Optional[str] = None,
         skip_auth: Optional[bool] = False,
     ) -> None:
-        """
-        Args:
-            client_id (str): id for your user at Barentswatch.
-            client_secret (str): secret for your user at Barentswatch.
-            skip_auth (Optional[bool]): skip authentication. Useful for testing.
-        """
-        if not skip_auth:
-            self.client_id = client_id or CLIENT_ID
-            self.client_secret = client_secret or CLIENT_SECRET
 
-            if (not self.client_id) | (
-                not self.client_secret
-            ):  # pragma: no cover # noqa
-                raise ValueError(
-                    """
+        if skip_auth:
+            return
+        self.client_id = client_id or CLIENT_ID
+        self.client_secret = client_secret or CLIENT_SECRET
+
+        if (not self.client_id) | (not self.client_secret):  # pragma: no cover # noqa
+            raise ValueError(
+                """
                     Please either set CLIENT_ID and CLIENT_SECRET in .env file
                     or provide them when creating an instance of the class
                     """
-                )
+            )
 
-            if type(self.client_id) == str:  # pragma: no cover
-                self.client_id = urllib.parse.quote_plus(self.client_id)
-            if type(self.client_secret) == str:  # pragma: no cover
-                self.client_secret = urllib.parse.quote_plus(self.client_secret)
+        if type(self.client_id) == str:  # pragma: no cover
+            self.client_id = urllib.parse.quote_plus(self.client_id)
+        if type(self.client_secret) == str:  # pragma: no cover
+            self.client_secret = urllib.parse.quote_plus(self.client_secret)
 
-            self.authenticate_session = requests.Session()  # Session for tokens
-            self.authenticate()
-            self.access = ""
+        self.authenticate_session = requests.Session()  # Session for tokens
+        self.authenticate()
+        self.access = ""
 
-            self.session = requests.Session()
-            self.session.auth = self.auth  # type: ignore
-            self.session.hooks["response"].append(self.reauth)
+        self.session = requests.Session()
+        self.session.auth = self.auth  # type: ignore
+        self.session.hooks["response"].append(self.reauth)
 
     def reauth(  # type: ignore
         self, response: requests.models.Response, *args, **kwargs

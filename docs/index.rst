@@ -6,17 +6,38 @@
 Welcome to orion-nais's documentation!
 ======================================
 
+|Version Badge| |Docs Badge|
+
+.. |Version Badge| image:: https://img.shields.io/pypi/v/orion-nais
+    :target: https://pypi.org/project/orion-nais/
+
+.. |Docs Badge| image:: https://readthedocs.org/projects/orion-nais/badge/
+    :target: http://orion-nais.readthedocs.io
+
+
 .. toctree::
    :maxdepth: 3
    :caption: Contents:
 
-   api
-
 .. mdinclude:: ../README.md
 
-Indices and tables
-==================
+API reference
+=============
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
+
+.. autoclass:: orion.client.Orion
+  :members:
+
+.. automodule:: orion.mmsi
+  :members:
+
+.. automodule:: orion.vessel_codes
+  :members:
+
+.. automodule:: orion.utils.get_data
+  :members:
+
+.. autoclass:: orion.types.ais
+  :members:
