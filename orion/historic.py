@@ -189,7 +189,11 @@ class HistoricOrion(Orion):
         geom = shape(geometry)
         # Create a rectangle from the bounding box
 
-        body = {"Start": from_date, "End": to_date, "Bbox": geom.bounds}
+        body = {
+            "Start": from_date,
+            "End": to_date,
+            "Bbox": ",".join(str(s) for s in geom.bounds),
+        }
 
         endpoint = f"{URLS['KYSTDATAHUSET']}/ais/positions/within-bbox-time"
         try:
@@ -199,6 +203,9 @@ class HistoricOrion(Orion):
                 json=body,
             )
             response.raise_for_status()
+            resp = response.json()
+            if resp.get("success") is False:
+                raise ValueError(resp.get("msg"))
 
         except requests.exceptions.HTTPError as err:  # pragma: no cover
             raise err
@@ -208,7 +215,7 @@ class HistoricOrion(Orion):
             # They return latitude and longitude in the wrong order according to their docs
             #
             ais: List[Ais] = []
-            for msg in response.json():
+            for msg in resp.get("data"):
                 # fix order in returned array
                 msg[2], msg[3] = msg[3], msg[2]
                 # we only need the first 6 elements
