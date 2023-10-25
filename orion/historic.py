@@ -11,26 +11,17 @@ Example:
 Contributed by havard.gulldahl@nrk.no
 """
 from collections import namedtuple
-import json
 import logging
-import math
 import os
-import urllib.parse
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 
 import dotenv
-import geopandas
-import pandas as pd
-import pytz
 import requests
-from requests.auth import HTTPBasicAuth
-from shapely.geometry import LineString, Point, shape
+from shapely.geometry import shape
 
-from orion.mmsi import MmsiMixin
 from orion.types.ais import Ais
 from orion.urls import URLS
-from orion.vessel_codes import VesselCodeMixin
 from orion.client import Orion
 
 project_dir = os.path.join(os.path.dirname(__file__), os.pardir)
@@ -42,11 +33,23 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"), format=_log_fmt)
 logger = logging.getLogger(__name__)
 
 
-# named tuple to pythonly deal with position array/list that some methods return
+# named tuple to pythonly deal with position array/list that some endpoints of the API return
 Position = namedtuple(
     "Position",
-    field_names="mmsi, date_time_utc, longitude, latitude, COG, SOG, ais_msg_type, calc_speed, sec_prevpoint, dist_prevpoint",
-    module="kystdatahuset",
+    field_names=[
+        "mmsi",
+        "msgtime",
+        "longitude",
+        "latitude",
+        "courseOverGround",
+        "speedOverGround",
+        # these following fields from the API result are not important for us
+        # "ais_msg_type",
+        # "calc_speed",
+        # "sec_prevpoint",
+        # "dist_prevpoint",
+    ],
+    module="HistoricOrion",
 )
 
 
@@ -73,6 +76,10 @@ class HistoricOrion(Orion):
 
     def decorate_ais_response(self, response: requests.models.Response) -> List[Ais]:
         response.raise_for_status()
+        resp = response.json()
+        if resp.get("success") is False:
+            raise ValueError(resp.get("msg"))
+
         # The data object of the WebServiceResponse will be an rray of arrays
         # where the elements of the inner array are (in order):
         # [0] MMSI number, AIS user id -- int
@@ -86,9 +93,13 @@ class HistoricOrion(Orion):
         # [8] sec_prevpoint -- int
         # [9] dist_prevpoint -- int
         ais: List[Ais] = []
-        for data in response.json():
-            # this creates the named tuple Position and then unpacks it to a Ais dict
-            ais.append(Ais(**Position(*data)._asdict()))
+        for data in resp.get("data"):
+            # we only need the first 6 elements
+            pos: Ais = Ais(Position(*data[:6])._asdict())
+            # patch the msgtime, it is in utc
+            pos["msgtime"] += "Z"
+            # append to list
+            ais.append(pos)
         ais = self.add_jurisdiction_and_ship_type(ais)
         return ais
 
@@ -128,7 +139,6 @@ class HistoricOrion(Orion):
             raise ValueError("Please provide a valid ship mmsi")
 
         endpoint = f"{URLS['KYSTDATAHUSET']}/ais/positions/for-mmsis-time"
-        print(endpoint)
         data = {
             "MmsiIds": [mmsi],
             "Start": dateformatter(datetime.fromisoformat(fromDate)),
@@ -182,8 +192,6 @@ class HistoricOrion(Orion):
         body = {"Start": from_date, "End": to_date, "Bbox": geom.bounds}
 
         endpoint = f"{URLS['KYSTDATAHUSET']}/ais/positions/within-bbox-time"
-        print(endpoint)
-
         try:
             self.session.headers["Content-Type"] = "application/json"
             response = self.session.post(
@@ -198,10 +206,11 @@ class HistoricOrion(Orion):
         else:
             # There is a BUG in kystdatahuset API
             # They return latitude and longitude in the wrong order according to their docs
-            # fix order in returned array
             #
             ais: List[Ais] = []
             for msg in response.json():
+                # fix order in returned array
                 msg[2], msg[3] = msg[3], msg[2]
-                ais.append(Ais(**Position(*msg)._asdict()))
+                # we only need the first 6 elements
+                ais.append(Ais(Position(*msg[:6])._asdict()))
             return ais
