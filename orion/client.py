@@ -66,7 +66,6 @@ class Orion(MmsiMixin, VesselCodeMixin):
         client_secret: Optional[str] = None,
         skip_auth: Optional[bool] = False,
     ) -> None:
-
         if skip_auth:
             return
         self.client_id = client_id or CLIENT_ID
@@ -485,7 +484,10 @@ class Orion(MmsiMixin, VesselCodeMixin):
         """
 
         for a in ais:
-            a["shipTypeTxt"] = self.ais_vessel_codes.get_vessel_type_name(a["shipType"])
+            if "shipType" in a:
+                a["shipTypeTxt"] = self.ais_vessel_codes.get_vessel_type_name(
+                    a["shipType"]
+                )
             a["jurisdiction"] = self.mmsi.get_jurisdiction_name(a["mmsi"])
 
         return ais
