@@ -9,6 +9,7 @@ Example:
 
 
 """
+
 import json
 import logging
 import math
@@ -43,7 +44,6 @@ CLIENT_SECRET = os.getenv("CLIENT_SECRET", None)
 
 
 class Orion(MmsiMixin, VesselCodeMixin):
-
     """Interface to Barentswatch API
 
     The CLIENT_ID and CLIENT_SECRET should be exposed as environment variables called
@@ -203,7 +203,9 @@ class Orion(MmsiMixin, VesselCodeMixin):
         except requests.exceptions.HTTPError as err:  # pragma: no cover
             raise err
 
-    def decorate_ais_response(self, response: requests.models.Response) -> List[Ais]:
+    def decorate_ais_response(  # type: ignore[no-any-unimported]
+        self, response: requests.models.Response
+    ) -> List[Ais]:
         response.raise_for_status()
         ais = response.json()
 

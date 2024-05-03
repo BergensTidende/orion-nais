@@ -6,23 +6,26 @@ Documentation of available API's and how to use them
 
 
 Example:
+from orion.historic import HistoricOrion
+orion = HistoricOrion()
 
 
 Contributed by havard.gulldahl@nrk.no
 """
-from collections import namedtuple
+
 import logging
 import os
+from collections import namedtuple
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 
 import dotenv
 import requests
 from shapely.geometry import shape
 
+from orion.client import Orion
 from orion.types.ais import Ais
 from orion.urls import URLS
-from orion.client import Orion
 
 project_dir = os.path.join(os.path.dirname(__file__), os.pardir)
 dotenv_path = os.path.join(project_dir, ".env")
@@ -33,9 +36,10 @@ logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"), format=_log_fmt)
 logger = logging.getLogger(__name__)
 
 
-# named tuple to pythonly deal with position array/list that some endpoints of the API return
-Position = namedtuple(
-    "Position",
+# named tuple to pythonly deal with position array/list that some endpoints
+# of the API return. Mypy throws an error that's not an error, so we ignore it.
+Position = namedtuple( # type: ignore[misc]
+    typename="Position",
     field_names=[
         "mmsi",
         "msgtime",
@@ -43,11 +47,6 @@ Position = namedtuple(
         "latitude",
         "courseOverGround",
         "speedOverGround",
-        # these following fields from the API result are not important for us
-        # "ais_msg_type",
-        # "calc_speed",
-        # "sec_prevpoint",
-        # "dist_prevpoint",
     ],
     module="HistoricOrion",
 )
@@ -59,7 +58,6 @@ def dateformatter(dt: datetime) -> str:
 
 
 class HistoricOrion(Orion):
-
     """Interface to Kystdatahuset API
 
     orion = HistoricOrion()
@@ -74,7 +72,9 @@ class HistoricOrion(Orion):
     ) -> None:
         self.session = requests.Session()
 
-    def decorate_ais_response(self, response: requests.models.Response) -> List[Ais]:
+    def decorate_ais_response(  # type: ignore[no-any-unimported]
+        self, response: requests.models.Response
+    ) -> List[Ais]:
         response.raise_for_status()
         resp = response.json()
         if resp.get("success") is False:
@@ -138,11 +138,14 @@ class HistoricOrion(Orion):
         if not self.mmsi.is_valid_ship_mmsi(mmsi):
             raise ValueError("Please provide a valid ship mmsi")
 
+        start_date = datetime.fromisoformat(fromDate.replace('Z', '+00:00'))
+        end_date = datetime.fromisoformat(toDate.replace('Z', '+00:00'))
+
         endpoint = f"{URLS['KYSTDATAHUSET']}/ais/positions/for-mmsis-time"
         data = {
             "MmsiIds": [mmsi],
-            "Start": dateformatter(datetime.fromisoformat(fromDate)),
-            "End": dateformatter(datetime.fromisoformat(toDate)),
+            "Start": dateformatter(start_date),
+            "End": dateformatter(end_date),
         }
 
         try:
@@ -212,8 +215,8 @@ class HistoricOrion(Orion):
 
         else:
             # There is a BUG in kystdatahuset API
-            # They return latitude and longitude in the wrong order according to their docs
-            #
+            # They return latitude and longitude in the
+            # wrong order according to their docs
             ais: List[Ais] = []
             for msg in resp.get("data"):
                 # fix order in returned array

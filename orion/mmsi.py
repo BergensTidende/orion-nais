@@ -308,6 +308,7 @@ class Jurisdiction:
     """
     Represents a jurisdiction. A jurisdiction is a country or a group of countries
     """
+
     name: str
     midcode: str
     full_name: str
@@ -321,6 +322,7 @@ class Mmsi:
     getting the MID code for a ship. Also for filtering on country codes.
 
     """
+
     jurisdictions: List[Jurisdiction] = field(default_factory=make_jurisdictions)
 
     def is_valid_ship_mmsi(self, mmsi: int) -> bool:
