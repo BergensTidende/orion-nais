@@ -14,17 +14,15 @@ import json
 import logging
 import math
 import os
-import urllib.parse
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Union
+from datetime import datetime, timedelta, timezone
+from typing import Dict, List, Literal, Optional, Union, overload
 
 import dotenv
 import geopandas
 import pandas as pd
 import pytz
 import requests
-from requests.auth import HTTPBasicAuth
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, shape
 
 from orion.mmsi import MmsiMixin
 from orion.types.ais import Ais
@@ -41,6 +39,15 @@ logger = logging.getLogger(__name__)
 
 CLIENT_ID = os.getenv("CLIENT_ID", None)
 CLIENT_SECRET = os.getenv("CLIENT_SECRET", None)
+
+ModelFormat = Literal["Json", "Geojson", "FeatureCollection"]
+NonJsonModelFormat = Literal["Geojson", "FeatureCollection"]
+GeoJsonResponse = Union[Dict[str, object], List[Dict[str, object]]]
+
+MODEL_FORMATS = {"Json", "Geojson", "FeatureCollection"}
+HISTORIC_AIS_LOOKBACK_DAYS = 14
+HISTORIC_AIS_MMSI_IN_AREA_MAX_DAYS = 7
+HISTORIC_AIS_MAX_AREA_KM2 = 500
 
 
 class Orion(MmsiMixin, VesselCodeMixin):
@@ -79,14 +86,9 @@ class Orion(MmsiMixin, VesselCodeMixin):
                     """
             )
 
-        if type(self.client_id) == str:  # pragma: no cover
-            self.client_id = urllib.parse.quote_plus(self.client_id)
-        if type(self.client_secret) == str:  # pragma: no cover
-            self.client_secret = urllib.parse.quote_plus(self.client_secret)
-
         self.authenticate_session = requests.Session()  # Session for tokens
-        self.authenticate()
         self.access = ""
+        self.authenticate()
 
         self.session = requests.Session()
         self.session.auth = self.auth  # type: ignore
@@ -136,16 +138,19 @@ class Orion(MmsiMixin, VesselCodeMixin):
         if not self.client_id or not self.client_secret:  # pragma: no cover
             raise ValueError("Please provide a client id and client secret")
 
-        Headers = {"Content-Type": "application/x-www-form-urlencoded"}
-
-        body = f"grant_type=client_credentials&client_id={self.client_id}&client_secret={self.client_secret}"  # noqa: E501
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+        body = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+            "scope": "ais",
+            "grant_type": "client_credentials",
+        }
 
         try:
             response = self.authenticate_session.post(
                 URLS["TOKEN"],
                 data=body,
-                auth=HTTPBasicAuth(self.client_id, self.client_secret),
-                headers=Headers,
+                headers=headers,
             )
             response.raise_for_status()
             data = response.json()
@@ -155,7 +160,92 @@ class Orion(MmsiMixin, VesselCodeMixin):
         except requests.exceptions.HTTPError as err:  # pragma: no cover
             raise err
 
-    def get_ais_last_24H(self, mmsi: int) -> List[Ais]:
+    def _validate_model_format(self, model_format: Optional[str]) -> None:
+        if model_format is not None and model_format not in MODEL_FORMATS:
+            raise ValueError(
+                f"model_format must be one of: {', '.join(sorted(MODEL_FORMATS))}"
+            )
+
+    def _historic_params(self, model_format: Optional[str]) -> Dict[str, str]:
+        self._validate_model_format(model_format)
+        if model_format is None:
+            return {}
+        return {"modelFormat": model_format}
+
+    def _parse_datetime(self, value: str) -> datetime:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    def _validate_historic_timerange(
+        self,
+        from_date: str,
+        to_date: str,
+        max_days: Optional[int] = None,
+    ) -> None:
+        start = self._parse_datetime(from_date)
+        end = self._parse_datetime(to_date)
+
+        if start > end:
+            raise ValueError("from_date must be before to_date")
+
+        now = datetime.now(timezone.utc)
+        oldest_allowed = now - timedelta(days=HISTORIC_AIS_LOOKBACK_DAYS)
+        if start < oldest_allowed:
+            raise ValueError("Historic AIS only has data from the past 14 days")
+
+        if max_days is not None and end - start > timedelta(days=max_days):
+            raise ValueError(f"Timeframe cannot be longer than {max_days} days")
+
+    def _geometry_area_km2(self, geometry: Dict[str, object]) -> float:
+        geom = shape(geometry)
+        if geom.is_empty:
+            return 0
+        series = geopandas.GeoSeries([geom], crs="EPSG:4326")
+        return float(series.to_crs(epsg=23032).area.iloc[0] / 1_000_000)
+
+    def _validate_mmsi_in_area_input(
+        self,
+        geometry: Dict[str, object],
+        from_date: str,
+        to_date: str,
+    ) -> None:
+        self._validate_historic_timerange(
+            from_date,
+            to_date,
+            max_days=HISTORIC_AIS_MMSI_IN_AREA_MAX_DAYS,
+        )
+        area = self._geometry_area_km2(geometry)
+        if area > HISTORIC_AIS_MAX_AREA_KM2:
+            raise ValueError("Polygon area cannot be larger than 500 km2")
+
+    @overload
+    def get_ais_last_24H(
+        self,
+        mmsi: int,
+        model_format: None = None,
+    ) -> List[Ais]: ...
+
+    @overload
+    def get_ais_last_24H(
+        self,
+        mmsi: int,
+        model_format: Literal["Json"],
+    ) -> List[Ais]: ...
+
+    @overload
+    def get_ais_last_24H(
+        self,
+        mmsi: int,
+        model_format: NonJsonModelFormat,
+    ) -> GeoJsonResponse: ...
+
+    def get_ais_last_24H(
+        self,
+        mmsi: int,
+        model_format: Optional[ModelFormat] = None,
+    ) -> Union[List[Ais], GeoJsonResponse]:
         """
         Get AIS for a ship last 24 hour
 
@@ -172,13 +262,54 @@ class Orion(MmsiMixin, VesselCodeMixin):
 
         try:
             response = self.session.get(
-                f"{URLS['HISTORIC_AIS']}/historic/trackslast24hours/{mmsi}"
+                f"{URLS['HISTORIC_AIS']}/historic/trackslast24hours/{mmsi}",
+                params=self._historic_params(model_format),
             )
+            if model_format is not None and model_format != "Json":
+                response.raise_for_status()
+                return response.json()
             return self.decorate_ais_response(response)
         except requests.exceptions.HTTPError as err:  # pragma: no cover
             raise err
 
-    def get_ais(self, mmsi: int, fromDate: str, toDate: str) -> List[Ais]:
+    @overload
+    def get_ais(
+        self,
+        mmsi: int,
+        fromDate: str,
+        toDate: str,
+        model_format: None = None,
+        filter_satellite_positions: bool = True,
+    ) -> List[Ais]: ...
+
+    @overload
+    def get_ais(
+        self,
+        mmsi: int,
+        fromDate: str,
+        toDate: str,
+        model_format: Literal["Json"],
+        filter_satellite_positions: bool = True,
+    ) -> List[Ais]: ...
+
+    @overload
+    def get_ais(
+        self,
+        mmsi: int,
+        fromDate: str,
+        toDate: str,
+        model_format: NonJsonModelFormat,
+        filter_satellite_positions: bool = True,
+    ) -> GeoJsonResponse: ...
+
+    def get_ais(
+        self,
+        mmsi: int,
+        fromDate: str,
+        toDate: str,
+        model_format: Optional[ModelFormat] = None,
+        filter_satellite_positions: bool = True,
+    ) -> Union[List[Ais], GeoJsonResponse]:
         """
         Get AIS for a ship in a give timeframe
 
@@ -195,10 +326,20 @@ class Orion(MmsiMixin, VesselCodeMixin):
         if not self.mmsi.is_valid_ship_mmsi(mmsi):
             raise ValueError("Please provide a valid ship mmsi")
 
+        self._validate_historic_timerange(fromDate, toDate)
+        params: Dict[str, Union[str, bool]] = {
+            **self._historic_params(model_format),
+            "filterSatellitePositions": filter_satellite_positions,
+        }
+
         try:
             response = self.session.get(
-                f"{URLS['HISTORIC_AIS']}/historic/tracks/{mmsi}/{fromDate}/{toDate}"
+                f"{URLS['HISTORIC_AIS']}/historic/tracks/{mmsi}/{fromDate}/{toDate}",
+                params=params,
             )
+            if model_format is not None and model_format != "Json":
+                response.raise_for_status()
+                return response.json()
             return self.decorate_ais_response(response)
         except requests.exceptions.HTTPError as err:  # pragma: no cover
             raise err
@@ -217,6 +358,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         mmsis: List[int],
         fromDate: Optional[str] = None,
         toDate: Optional[str] = None,
+        filter_satellite_positions: bool = True,
     ) -> List[Ais]:
         """
         Get AIS data from multiple ships in a give timeframe
@@ -231,7 +373,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         Returns:
             Array: Json of combined AIS tracks
         """
-        ais = []
+        ais: List[Ais] = []
 
         for mmsi in mmsis:
             if not self.mmsi.is_valid_ship_mmsi(mmsi):
@@ -240,7 +382,14 @@ class Orion(MmsiMixin, VesselCodeMixin):
             if (not fromDate) or (not toDate):
                 ais.extend(self.get_ais_last_24H(mmsi))
             else:
-                ais.extend(self.get_ais(mmsi, fromDate, toDate))
+                ais.extend(
+                    self.get_ais(
+                        mmsi,
+                        fromDate,
+                        toDate,
+                        filter_satellite_positions=filter_satellite_positions,
+                    )
+                )
 
         return ais
 
@@ -249,7 +398,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         geometry: Dict[str, object],
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
-    ) -> List[Dict[str, object]]:
+    ) -> List[int]:
         """
         Get AIS for ships in given area inside the timeframe
 
@@ -273,9 +422,11 @@ class Orion(MmsiMixin, VesselCodeMixin):
             from_date = _from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
             to_date = _to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
 
+        self._validate_mmsi_in_area_input(geometry, from_date, to_date)
+
         body = {
-            "msgtimefrom": f"{from_date}",
-            "msgtimeto": f"{to_date}",
+            "msgTimeFrom": f"{from_date}",
+            "msgTimeTo": f"{to_date}",
             "polygon": geometry,
         }
 
@@ -287,6 +438,24 @@ class Orion(MmsiMixin, VesselCodeMixin):
             )
             response.raise_for_status()
 
+            return response.json()
+
+        except requests.exceptions.HTTPError as err:  # pragma: no cover
+            raise err
+
+    def search_vessels(self, q: str) -> List[Dict[str, object]]:
+        """
+        Search the latest AIS messages by vessel name.
+        """
+        if len(q) > 100:
+            raise ValueError("Search query cannot be longer than 100 characters")
+
+        try:
+            response = self.session.get(
+                f"{URLS['HISTORIC_AIS_V2']}/historic/search",
+                params={"q": q},
+            )
+            response.raise_for_status()
             return response.json()
 
         except requests.exceptions.HTTPError as err:  # pragma: no cover
@@ -345,7 +514,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         distance: int,
         from_date: Optional[str] = None,
         to_date: Optional[str] = None,
-    ) -> List[Dict[str, object]]:
+    ) -> List[int]:
         """
         Get AIS data from ships inside the geometry in a give timeframe
 

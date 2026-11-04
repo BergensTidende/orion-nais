@@ -20,53 +20,40 @@ PYTHON_INTERPRETER = python
 #################################################################################
 
 ##@ Formatting
-.PHONY: format-black
-format-black: ## black (code formatter)
-	@poetry run black orion
-
-.PHONY: format-isort
-format-isort: ## isort (import formatter)
-	@poetry run isort orion
-
 .PHONY: format
-format: format-black format-isort ## run all formatters
+format: ## format code with ruff
+	@uv run ruff format orion tests cli.py
+	@uv run ruff check --select I --fix orion tests cli.py
 
 ##@ Linting
-.PHONY: lint-black
-lint-black: ## black in linting mode
-	@poetry run black orion --check
-
-.PHONY: lint-isort
-lint-isort: ## isort in linting mode
-	@poetry run isort orion --check
-
-.PHONY: lint-flake8
-lint-flake8: ## flake8 (linter)
-	@poetry run flake8 orion
+.PHONY: lint-ruff
+lint-ruff: ## ruff (formatter, import sorter and linter)
+	@uv run ruff format --check orion tests cli.py
+	@uv run ruff check orion tests cli.py
 
 .PHONY: lint-mypy
 lint-mypy: ## mypy (static-type checker)
-	@poetry run mypy --config-file pyproject.toml orion
+	@uv run mypy --config-file pyproject.toml orion
 
 .PHONY: lint-mypy-report
 lint-mypy-report: ## run mypy & create report
-	@poetry run mypy --config-file pyproject.toml orion --html-report ./mypy_html
+	@uv run mypy --config-file pyproject.toml orion --html-report ./mypy_html
 
-lint: lint-black lint-isort lint-flake8 lint-mypy ## run all linters
+lint: lint-ruff lint-mypy ## run all linters
 
 .PHONY: mock
-mock: ## make mocsk for testing
-	@poetry run python tests/make_mock_data.py
+mock: ## make mocks for testing
+	@uv run python tests/make_mock_data.py
 
 .PHONY: test
 test: ## run tests
-	@poetry run pytest -v --cov=orion --cov-report=term-missing
+	@uv run pytest -v --cov=orion --cov-report=term-missing
 
 ##@ Releases
 .PHONY: bump-patch
 bump-patch: ## bump version patch
-	@poetry run bump2version patch  --allow-dirty --verbose
-	@poetry build
+	@uv run bump2version patch  --allow-dirty --verbose
+	@uv build
 	@git add .
 	@git commit -m "updating package"
 	@git push --tags
@@ -74,8 +61,8 @@ bump-patch: ## bump version patch
 
 .PHONY: bump-minor
 bump-minor: ## bump version minor
-	@poetry run bump2version minor  --allow-dirty --verbose
-	@poetry build
+	@uv run bump2version minor  --allow-dirty --verbose
+	@uv build
 	@git add .
 	@git commit -m "updating package"
 	@git push --tags
@@ -83,8 +70,8 @@ bump-minor: ## bump version minor
 
 .PHONY: bump-major
 bump-major:  ## bump version major
-	@poetry run bump2version major  --allow-dirty --verbose
-	@poetry build
+	@uv run bump2version major  --allow-dirty --verbose
+	@uv build
 	@git add .
 	@git commit -m "updating package"
 	@git push --tags
@@ -92,4 +79,5 @@ bump-major:  ## bump version major
 
 .PHONY: release
 release:  ## release package to pypi
-	@poetry build & poetry publish
+	@uv build
+	@uv publish

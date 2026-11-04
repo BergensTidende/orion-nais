@@ -57,10 +57,10 @@ pipenv install orion-nais
 
 ```
 
-or using poetry:
+or using uv:
 
 ```bash
-poetry add orion-nais
+uv add orion-nais
 ```
 
 ## Usage
@@ -69,7 +69,7 @@ To install the package in your project run
 
 ```bash
 
-poetry add orion-nais
+uv add orion-nais
 ```
 
 then add an .env file to your project with the following variables:
@@ -98,24 +98,28 @@ line = orion.ais_to_line(ais)
 
 ### Requirements
 - pyenv - manage python versions
-- poetry - manage python dependencies
+- uv - manage Python dependencies and packaging
 
 To install on mac you can use homebrew:
 
 ```bash
 brew upgrade
-brew install pyenv
+brew install pyenv uv
 ```
 
-You can either install poetry with homebrew or the way described in the [documentation](https://python-poetry.org/docs/#installation)
+To install dependencies for local development:
+
+```bash
+uv sync
+```
 
 
 ### Makefile commands
 
 - `make lint`
-  - lint the code in the src folder with black, isort and flake8. Mypy will check for correct typing.
+  - lint the code with ruff. Mypy will check for correct typing.
 - `make format`
-  - format the code in the src folder with black and isort.
+  - format the code and sort imports with ruff.
 - `make test`
   - run the tests in the tests folder.
 - `make bump-patch`
@@ -134,7 +138,6 @@ You can either install poetry with homebrew or the way described in the [documen
 .
 ├── .bumpversion.cfg
 ├── .editorconfig
-├── .flake8
 ├── .gitignore
 ├── Makefile
 ├── README.md
@@ -147,8 +150,8 @@ You can either install poetry with homebrew or the way described in the [documen
 │   ├── utils
 │   │   └── get_data.py
 │   └── vessel_codes.py
-├── poetry.lock
 ├── pyproject.toml
+├── uv.lock
 └── tests
     ├── make_mock_data.py
     ├── mocks
@@ -160,14 +163,12 @@ You can either install poetry with homebrew or the way described in the [documen
   - Configuration file for bumpversion.
 - `.editorconfig`
   - Configuration file for editorconfig.
-- `.flake8`
-  - Configuration file for flake8.
 - `.gitignore`
   - Configuration file for git.
 - `pyproject.toml`
-  - Configuration file for poetry. Mypy and isort is configured here.
-- `poetry.lock`
-  - Lock file for poetry.
+  - Configuration file for packaging, uv, ruff and mypy.
+- `uv.lock`
+  - Lock file for uv.
 - `Makefile`
   - Makefile for the project. Here you can find commands for linting and formatting.
 - `README.md`

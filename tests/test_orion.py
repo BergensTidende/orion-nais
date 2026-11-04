@@ -3,18 +3,43 @@ import os
 from datetime import datetime, timedelta
 
 import geopandas
-import pandas as pd
 import pytest
-import pytz
-import requests
 from deepdiff import DeepDiff
-from shapely.geometry import LineString, Point
 
 from orion import Orion
-from orion.utils.get_data import get_oil_installations, get_oil_rigs
 from orion.mmsi import Jurisdiction
+from orion.utils.get_data import get_oil_installations, get_oil_rigs
 
 project_dir = os.path.join(os.path.dirname(__file__), os.pardir)
+
+
+class FakeResponse:
+    def __init__(self, data):
+        self.data = data
+
+    def json(self):
+        return self.data
+
+    def raise_for_status(self):
+        return None
+
+
+class FakeSession:
+    def __init__(self, get_data=None, post_data=None):
+        self.auth = None
+        self.headers = {}
+        self.hooks = {"response": []}
+        self.calls = []
+        self.get_data = [] if get_data is None else get_data
+        self.post_data = [257055990] if post_data is None else post_data
+
+    def get(self, url, **kwargs):
+        self.calls.append(("get", url, kwargs))
+        return FakeResponse(self.get_data)
+
+    def post(self, url, **kwargs):
+        self.calls.append(("post", url, kwargs))
+        return FakeResponse(self.post_data)
 
 
 def test_orion():
@@ -33,6 +58,37 @@ def test_authenticate():
         orion.authenticate()
 
 
+def test_authenticate_requests_ais_scope_and_keeps_access_token():
+    orion = Orion(skip_auth=True)
+    orion.client_id = "client"
+    orion.client_secret = "secret"
+    orion.authenticate_session = FakeSession(post_data={"access_token": "token"})
+
+    orion.authenticate()
+
+    _, _, kwargs = orion.authenticate_session.calls[0]
+    assert kwargs["data"] == {
+        "client_id": "client",
+        "client_secret": "secret",
+        "scope": "ais",
+        "grant_type": "client_credentials",
+    }
+    assert "auth" not in kwargs
+    assert orion.access == "token"
+
+
+def test_init_keeps_access_token(monkeypatch):
+    sessions = [
+        FakeSession(post_data={"access_token": "token"}),
+        FakeSession(),
+    ]
+    monkeypatch.setattr("orion.client.requests.Session", lambda: sessions.pop(0))
+
+    orion = Orion(client_id="client", client_secret="secret")
+
+    assert orion.access == "token"
+
+
 def test_get_ais_last_24H():
     orion = Orion()
     ais = orion.get_ais_last_24H(257055990)
@@ -46,7 +102,7 @@ def test_get_ais_last_24H_error():
 
 
 def test_get_ais():
-    _from_date = datetime.now() - timedelta(days=30)
+    _from_date = datetime.now() - timedelta(days=1)
     _to_date = datetime.now()
     from_date = _from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     to_date = _to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -56,17 +112,17 @@ def test_get_ais():
 
 
 def test_get_ais_error():
-    _from_date = datetime.now() - timedelta(days=30)
+    _from_date = datetime.now() - timedelta(days=1)
     _to_date = datetime.now()
     from_date = _from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     to_date = _to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     orion = Orion()
     with pytest.raises(ValueError):
-        ais = orion.get_ais(123, from_date, to_date)
+        orion.get_ais(123, from_date, to_date)
 
 
 def test_get_multiple_ais_with_dates():
-    _from_date = datetime.now() - timedelta(days=30)
+    _from_date = datetime.now() - timedelta(days=1)
     _to_date = datetime.now()
     from_date = _from_date.strftime("%Y-%m-%dT%H:%M:%SZ")
     to_date = _to_date.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -84,7 +140,7 @@ def test_get_multiple_ais_no_date():
 def test_get_multiple_ais_error():
     orion = Orion()
     with pytest.raises(ValueError):
-        ais = orion.get_multiple_ais([123, 257055930, 257055910])
+        orion.get_multiple_ais([123, 257055930, 257055910])
 
 
 def test_get_mmsis_in_area_timeframe():
@@ -111,12 +167,132 @@ def test_get_mmsis_in_area():
 
 
 def test_get_mmsis_in_area_error():
-    orion = Orion()
+    orion = Orion(skip_auth=True)
     with open(f"{project_dir}/tests/mocks/area.json") as f:
         area = json.load(f)
         del area["features"][0]["geometry"]["coordinates"]
         with pytest.raises(ValueError):
             orion.get_mmsis_in_area(area)
+
+
+def test_get_ais_uses_openapi_query_params():
+    orion = Orion(skip_auth=True)
+    orion.session = FakeSession()
+    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    orion.get_ais(
+        257055990,
+        from_date,
+        to_date,
+        model_format="FeatureCollection",
+        filter_satellite_positions=False,
+    )
+
+    _, url, kwargs = orion.session.calls[0]
+    assert "/historic/tracks/257055990/" in url
+    assert kwargs["params"] == {
+        "modelFormat": "FeatureCollection",
+        "filterSatellitePositions": False,
+    }
+
+
+def test_get_ais_feature_collection_returns_raw_geojson():
+    expected = {"type": "FeatureCollection", "features": []}
+    orion = Orion(skip_auth=True)
+    orion.session = FakeSession(get_data=expected)
+    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    result = orion.get_ais(
+        257055990,
+        from_date,
+        to_date,
+        model_format="FeatureCollection",
+    )
+
+    assert result == expected
+
+
+def test_get_ais_rejects_invalid_model_format():
+    orion = Orion(skip_auth=True)
+    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with pytest.raises(ValueError, match="model_format"):
+        orion.get_ais(257055990, from_date, to_date, model_format="Xml")
+
+
+def test_get_mmsis_in_area_uses_openapi_body_keys():
+    orion = Orion(skip_auth=True)
+    orion.session = FakeSession()
+    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with open(f"{project_dir}/tests/mocks/area.json") as f:
+        area = json.load(f)
+        result = orion.get_mmsis_in_area(area, from_date, to_date)
+
+    _, url, kwargs = orion.session.calls[0]
+    body = kwargs["json"]
+    assert result == [257055990]
+    assert url.endswith("/historic/mmsiinarea/")
+    assert "msgTimeFrom" in body
+    assert "msgTimeTo" in body
+    assert "msgtimefrom" not in body
+    assert "msgtimeto" not in body
+
+
+def test_get_mmsis_in_area_rejects_too_long_timeframe():
+    orion = Orion(skip_auth=True)
+    from_date = (datetime.now() - timedelta(days=8)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with open(f"{project_dir}/tests/mocks/area.json") as f:
+        area = json.load(f)
+        with pytest.raises(ValueError, match="longer than 7 days"):
+            orion.get_mmsis_in_area(area, from_date, to_date)
+
+
+def test_get_mmsis_in_area_rejects_too_large_area():
+    orion = Orion(skip_auth=True)
+    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = datetime.now().strftime("%Y-%m-%dT%H:%M:%SZ")
+    geometry = {
+        "type": "Polygon",
+        "coordinates": [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]],
+    }
+
+    with pytest.raises(ValueError, match="500 km2"):
+        orion.get_mmsis_in_area(geometry, from_date, to_date)
+
+
+def test_get_ais_rejects_dates_older_than_14_days():
+    orion = Orion(skip_auth=True)
+    from_date = (datetime.now() - timedelta(days=15)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    to_date = (datetime.now() - timedelta(days=14)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    with pytest.raises(ValueError, match="past 14 days"):
+        orion.get_ais(257055990, from_date, to_date)
+
+
+def test_search_vessels_uses_v2_search_endpoint():
+    orion = Orion(skip_auth=True)
+    orion.session = FakeSession()
+
+    result = orion.search_vessels("frida")
+
+    _, url, kwargs = orion.session.calls[0]
+    assert result == []
+    assert url.endswith("/v2/historic/search")
+    assert kwargs["params"] == {"q": "frida"}
+
+
+def test_search_vessels_rejects_too_long_query():
+    orion = Orion(skip_auth=True)
+
+    with pytest.raises(ValueError, match="100 characters"):
+        orion.search_vessels("x" * 101)
 
 
 def test_calculate_radius_in_meters_from_km2():
@@ -142,9 +318,7 @@ def test_buffer_around_point():
 
 def test_buffer_around_gdf():
     orion = Orion(skip_auth=True)
-    gdf = geopandas.read_file(
-        f"{project_dir}/tests/mocks/oil_installations.geojson"
-    )
+    gdf = geopandas.read_file(f"{project_dir}/tests/mocks/oil_installations.geojson")
 
     gdf_buffered = geopandas.read_file(
         f"{project_dir}/tests/mocks/oil_installations_buffer.geojson"
@@ -152,6 +326,7 @@ def test_buffer_around_gdf():
     gdf = orion.buffer_around_gdf(gdf, 100)
 
     assert all(gdf.geometry.to_wkt() == gdf_buffered.geometry.to_wkt())
+
 
 def test_get_mmsis_in_area_around_point():
     orion = Orion()
@@ -178,6 +353,7 @@ def test_ais_to_line_simplified():
             expected = fl.read()
             assert not DeepDiff(expected, line)
 
+
 ### Mmsi ###
 def test_get_jurisdiction():
     orion = Orion(skip_auth=True)
@@ -194,7 +370,7 @@ def test_get_jurisdiction_name():
 def test_is_valid_ship_mmsi():
     orion = Orion(skip_auth=True)
     valid = orion.mmsi.is_valid_ship_mmsi(123456789)
-    assert valid == False
+    assert not valid
 
 
 def test_get_mid():
@@ -206,13 +382,13 @@ def test_get_mid():
 def test_get_mid_error():
     orion = Orion(skip_auth=True)
     with pytest.raises(ValueError):
-        mid = orion.mmsi.get_mid(157956000)
+        orion.mmsi.get_mid(157956000)
 
 
 def test_is_norwegian():
     orion = Orion(skip_auth=True)
     norwegian = orion.mmsi.is_norwegian(257956000)
-    assert norwegian == True
+    assert norwegian
 
 
 def test_remove_norwegian_list():
@@ -280,9 +456,11 @@ def test_get_vessel_codes_from_description():
     )
     assert vessel_codes == [1001]
 
+
 def test_load_oil_installations():
     gdf = get_oil_installations()
     assert gdf is not None and len(gdf) > 0
+
 
 def test_get_oil_rigs():
     gdf = get_oil_rigs()

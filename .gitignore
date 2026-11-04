@@ -16,6 +16,7 @@ site/
 # Distribution / packaging
 .Python
 env/
+.venv/
 build/
 develop-eggs/
 dist/
@@ -40,6 +41,7 @@ orion/utils/__pycache__/
 
 .mypy_cache
 .mypy_cache/*
+.ruff_cache/
 
 .pytest_cache
 .coverage

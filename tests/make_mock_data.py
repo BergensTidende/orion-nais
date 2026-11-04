@@ -1,12 +1,11 @@
 import json
 import os
-from datetime import datetime, timedelta
 
-import pandas as pd
 import geopandas
-from orion import Orion
+import pandas as pd
 from shapely import wkt
 
+from orion import Orion
 
 project_dir = os.path.join(os.path.dirname(__file__), os.pardir)
 
@@ -74,4 +73,3 @@ gdf.to_file(f"{project_dir}/tests/mocks/oil_installations.geojson", driver="GeoJ
 orion.buffer_around_gdf(gdf, 100).to_file(
     f"{project_dir}/tests/mocks/oil_installations_buffer.geojson", driver="GeoJSON"
 )
-

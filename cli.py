@@ -1,7 +1,6 @@
-from orion import Orion
-from orion import HistoricOrion
 import sys
-import json
+
+from orion import HistoricOrion
 
 if __name__ == "__main__":
     client = HistoricOrion()
