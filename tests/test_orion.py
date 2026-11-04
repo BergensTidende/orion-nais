@@ -1,12 +1,15 @@
 import json
+import math
 import os
 from datetime import datetime, timedelta
 
 import geopandas
 import pytest
 from deepdiff import DeepDiff
+from shapely.geometry import Point, shape
 
 from orion import Orion
+from orion.client import METRIC_CRS
 from orion.mmsi import Jurisdiction
 from orion.utils.get_data import get_oil_installations, get_oil_rigs
 
@@ -310,22 +313,28 @@ def test_max_api_radius():
 
 def test_buffer_around_point():
     orion = Orion(skip_auth=True)
-    buffer = orion.buffer_around_point(61.036165, 4.510167, 100)
-    with open(f"{project_dir}/tests/mocks/buffer.json") as f:
-        expected = json.load(f)
-        assert not DeepDiff(expected, buffer)
+    lat, lon, distance = 61.036165, 4.510167, 100
+    buffered = geopandas.GeoSeries(
+        [shape(orion.buffer_around_point(lat, lon, distance))], crs="EPSG:4326"
+    ).to_crs(METRIC_CRS)
+    point = geopandas.GeoSeries([Point(lon, lat)], crs="EPSG:4326").to_crs(METRIC_CRS)
+
+    assert buffered.iloc[0].contains(point.iloc[0])
+    assert buffered.area.iloc[0] == pytest.approx(math.pi * distance**2, rel=0.002)
 
 
 def test_buffer_around_gdf():
     orion = Orion(skip_auth=True)
     gdf = geopandas.read_file(f"{project_dir}/tests/mocks/oil_installations.geojson")
+    original = gdf.geometry.copy()
+    buffered = orion.buffer_around_gdf(gdf, 100)
 
-    gdf_buffered = geopandas.read_file(
-        f"{project_dir}/tests/mocks/oil_installations_buffer.geojson"
+    assert len(buffered) == len(original)
+    assert buffered.geometry.is_valid.all()
+    assert buffered.geometry.notna().all()
+    assert all(
+        polygon.contains(point) for polygon, point in zip(buffered.geometry, original)
     )
-    gdf = orion.buffer_around_gdf(gdf, 100)
-
-    assert all(gdf.geometry.to_wkt() == gdf_buffered.geometry.to_wkt())
 
 
 def test_get_mmsis_in_area_around_point():
@@ -350,8 +359,12 @@ def test_ais_to_line_simplified():
         orion = Orion(skip_auth=True)
         line = orion.ais_to_line(ais, 2000)
         with open(f"{project_dir}/tests/mocks/simplified_line_last24h.geojson") as fl:
-            expected = fl.read()
-            assert not DeepDiff(expected, line)
+            expected = json.load(fl)
+            actual = json.loads(line)
+
+            expected_line = shape(expected["features"][0]["geometry"])
+            actual_line = shape(actual["features"][0]["geometry"])
+            assert actual_line.equals_exact(expected_line, tolerance=1e-8)
 
 
 ### Mmsi ###

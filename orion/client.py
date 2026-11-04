@@ -48,6 +48,7 @@ MODEL_FORMATS = {"Json", "Geojson", "FeatureCollection"}
 HISTORIC_AIS_LOOKBACK_DAYS = 14
 HISTORIC_AIS_MMSI_IN_AREA_MAX_DAYS = 7
 HISTORIC_AIS_MAX_AREA_KM2 = 500
+METRIC_CRS = "EPSG:25832"
 
 
 class Orion(MmsiMixin, VesselCodeMixin):
@@ -203,7 +204,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         if geom.is_empty:
             return 0
         series = geopandas.GeoSeries([geom], crs="EPSG:4326")
-        return float(series.to_crs(epsg=23032).area.iloc[0] / 1_000_000)
+        return float(series.to_crs(METRIC_CRS).area.iloc[0] / 1_000_000)
 
     def _validate_mmsi_in_area_input(
         self,
@@ -480,9 +481,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         geo_point = geopandas.GeoSeries(point)
         geo_point = geo_point.set_crs(epsg=4326)
 
-        geo_point_buffered = (
-            geo_point.to_crs(epsg=23032).buffer(distance).to_crs(epsg=4326)
-        )
+        geo_point_buffered = geo_point.to_crs(METRIC_CRS).buffer(distance).to_crs(4326)
 
         return json.loads(geo_point_buffered.to_json())["features"][0]["geometry"]
 
@@ -503,7 +502,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         geo_column = column or "geometry"
 
         gpd[geo_column] = (
-            gpd[geo_column].to_crs(epsg=23032).buffer(distance).to_crs(epsg=4326)
+            gpd[geo_column].to_crs(METRIC_CRS).buffer(distance).to_crs(4326)
         )
         return gpd
 
@@ -606,7 +605,7 @@ class Orion(MmsiMixin, VesselCodeMixin):
         gs = gdf["geometry"]
 
         if simplify is not None:
-            gs = gs.to_crs(epsg=23032).simplify(simplify).to_crs(epsg=4326)
+            gs = gs.to_crs(METRIC_CRS).simplify(simplify).to_crs(4326)
 
         return gs.to_json()
 

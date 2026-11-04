@@ -12,8 +12,9 @@ help:  ## Display this help
 #################################################################################
 
 PROJECT_DIR := $(shell dirname $(realpath $(lastword $(MAKEFILE_LIST))))
-PROJECT_NAME = {{ cookiecutter.project_name }}
-PYTHON_INTERPRETER = python
+UV = uv
+UV_CACHE_DIR ?= $(PROJECT_DIR)/.uv-cache
+UV_RUN = UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) run
 
 #################################################################################
 # COMMANDS                                                                      #
@@ -49,6 +50,15 @@ mock: ## make mocks for testing
 test: ## run tests
 	@uv run pytest -v --cov=orion --cov-report=term-missing
 
+.PHONY: check
+check: lint test ## run all checks
+
+##@ Releases
+.PHONY: clean-dist
+clean-dist: ## remove built package artifacts
+	@rm -f dist/*.whl dist/*.tar.gz
+
+
 ##@ Releases
 .PHONY: bump-patch
 bump-patch: ## bump version patch
@@ -78,6 +88,7 @@ bump-major:  ## bump version major
 	@git push
 
 .PHONY: release
-release:  ## release package to pypi
-	@uv build
-	@uv publish
+release: check ## release package to PyPI (requires UV_PUBLISH_TOKEN)
+	@$(MAKE) clean-dist
+	@$(MAKE) build
+	@UV_CACHE_DIR=$(UV_CACHE_DIR) $(UV) publish

@@ -75,6 +75,7 @@ def test_get_positions_in_geometry_uses_within_geom_time():
 
     _, url, kwargs = orion.session.calls[0]
     body = kwargs["json"]
+    assert url.startswith("https://kystdatahuset.kystverket.no/ws/api/")
     assert url.endswith("/ais/positions/within-geom-time")
     assert body["geom"].startswith("POLYGON")
     assert body["start"] == "2025-01-01T00:00:00"
@@ -106,8 +107,14 @@ def test_kystdatahuset_post_retries_transient_errors():
 
 def test_get_ais_last_24H():
     orion = HistoricOrion()
+    orion.session = FakeSession([{"success": True, "data": []}])
+
     ais = orion.get_ais_last_24H(257055990)
-    assert ais is not None
+
+    _, url, kwargs = orion.session.calls[0]
+    assert ais == []
+    assert url.endswith("/ais/positions/for-mmsis-time")
+    assert kwargs["json"]["MmsiIds"] == [257055990]
 
 
 def test_get_ais_last_24H_error():
@@ -148,8 +155,12 @@ def test_get_multiple_ais_with_dates():
 
 def test_get_multiple_ais_no_date():
     orion = HistoricOrion()
+    orion.session = FakeSession([{"success": True, "data": []} for _ in range(3)])
+
     ais = orion.get_multiple_ais([257055990, 257055930, 257055910])
-    assert ais is not None
+
+    assert ais == []
+    assert len(orion.session.calls) == 3
 
 
 def test_get_multiple_ais_error():
@@ -172,13 +183,15 @@ def test_get_mmsis_in_area_timeframe():
 
 def test_get_mmsis_in_area():
     orion = HistoricOrion()
+    orion.session = FakeSession([{"success": True, "data": []} for _ in range(2)])
     with open(f"{project_dir}/tests/mocks/area.json") as f:
         area = json.load(f)
         ais = orion.get_mmsis_in_area(area)
 
         area_geometry = area["features"][0]["geometry"]
         ais_geometry = orion.get_mmsis_in_area(area_geometry)
-        assert (ais is not None) and (ais_geometry is not None)
+        assert ais == []
+        assert ais_geometry == []
 
 
 def test_get_mmsis_in_area_error():

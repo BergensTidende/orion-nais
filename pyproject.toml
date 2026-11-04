@@ -1,6 +1,6 @@
 [project]
 name = "orion-nais"
-version = "0.2.1"
+version = "0.2.2"
 description = "A client for the NAIS API from FThe Norwegian Coastal Administration"
 authors = [{ name = "Lasse Lambrechts", email = "lasse.lambrechts@bt.no" }]
 license = { text = "MIT" }
